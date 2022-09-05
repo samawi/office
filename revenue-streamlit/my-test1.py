@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import altair as alt
 import numpy as np
 # from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
@@ -31,7 +32,7 @@ sheet_occ = wb["occ_rate"]
 date_start = sheet_params["C4"].value
 date_end = sheet_params['C5'].value
 area_rentable_office = sheet_params["C6"].value
-report_sum = sheet_params["C7"].value
+#report_sum = sheet_params["C7"].value
 
 # generate reporting daterange based on start and end dates
 my_reporting_date_range = pd.date_range(start=date_start, end=date_end, freq='MS')
@@ -50,7 +51,7 @@ def read_worksheet_into_dataframe(sheet_data):
     return df_data
 
 # Function: Calculate revenue
-def calculate_revenue(date_start, date_end, df_data):
+def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
     # Create report dataframe using datetime index for period
     df_report_rental_charge = pd.DataFrame(my_reporting_date_range, columns=['date'])   # Rental revenue
     df_report_sc_charge = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Service charge revenue
@@ -74,8 +75,13 @@ def calculate_revenue(date_start, date_end, df_data):
         [datetime(2026, 4, 1), 80000.00],
         [datetime(2028, 4, 1), 85000.00]
     ]
+
+    # select rows according to product_type
+    options = [product_type]
+    df_by_product = df_data[df_data['Product_Type'].isin(options)]
+
     substring = '-'
-    for index, row in df_data.iterrows():
+    for index, row in df_by_product.iterrows():
         vacant = False
     
         data_area = row['Area']
@@ -177,16 +183,25 @@ def calculate_revenue(date_start, date_end, df_data):
 
     df_sum['Occ'] = df_report_occupancy.resample(report_sum).mean()['sum']
     df_sum['OccPct'] = df_sum['Occ']/area_rentable_office
+    df_sum.reset_index()
     return df_sum, df_report_rental_charge,df_report_sc_charge,df_report_occupancy
 
 df_data = read_worksheet_into_dataframe(sheet_data)
-df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy = calculate_revenue(date_start, date_end , df_data)
+df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy = calculate_revenue(date_start, date_end , df_data, 'Office', '3M')
 
 # df_sum.to_excel('test1.xlsx')
 
 st.set_page_config(layout = "wide")
 
 df_sum.index = df_sum.index.strftime('%Y-%m')
+
+fig = px.bar(
+    df_sum,
+    y = "OccPct",
+    title = "Occupancy Rate"
+)
+st.plotly_chart(fig)
+
 
 format_mapping = {
     "Rental": "Rp {:,.2f}",
@@ -196,6 +211,14 @@ format_mapping = {
     "OccPct": "{:,.2%}",
 }
 df_sum_styled = df_sum.style.format(format_mapping)
+
+st.bar_chart(data=df_sum['OccPct'])
+
+# fig = alt.Chart(df_sum).mark_bar().encode(
+#     x='date',
+#     y='OccPct',
+# )
+# st.altair_chart(fig)
 
 st.table(df_sum_styled)
 
