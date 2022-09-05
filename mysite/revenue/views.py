@@ -1,9 +1,14 @@
+from django.shortcuts import render
+from django.http import HttpResponse
 
 import openpyxl
 import pandas as pd
 from datetime import datetime, timedelta, date
 from dateutil.relativedelta import relativedelta
 from itertools import islice
+
+
+
 
 # open excel file
 excel_file = "tenancy_list_30aug2022.xlsx"
@@ -154,26 +159,31 @@ def calculate_revenue(date_start, date_end, df_data):
             df_tenant_occupancy[str_column_name] = data_area
             df_report_occupancy = df_report_occupancy.join(df_tenant_occupancy, how="left")
 
-    # Clean dataframes
-    df_report_rental_charge.fillna(0, inplace=True)
-    df_report_sc_charge.fillna(0, inplace=True)
-    df_report_occupancy.fillna(0, inplace=True)
+        # Clean dataframes
+        df_report_rental_charge.fillna(0, inplace=True)
+        df_report_sc_charge.fillna(0, inplace=True)
+        df_report_occupancy.fillna(0, inplace=True)
 
-    # sum each rows
-    df_report_rental_charge['sum'] = df_report_rental_charge.sum(axis=1)
-    df_report_sc_charge['sum'] = df_report_sc_charge.sum(axis=1)
-    df_report_occupancy['sum'] = df_report_occupancy.sum(axis=1)
-    
-    # create summary report
-    df_sum = pd.DataFrame()
-    df_sum['Rental'] = df_report_rental_charge.resample(report_sum).sum()['sum']
-    df_sum['SC'] = df_report_sc_charge.resample(report_sum).sum()['sum']
-    df_sum['Total'] = df_sum.sum(axis=1)
+        # sum each rows
+        df_report_rental_charge['sum'] = df_report_rental_charge.sum(axis=1)
+        df_report_sc_charge['sum'] = df_report_sc_charge.sum(axis=1)
+        df_report_occupancy['sum'] = df_report_occupancy.sum(axis=1)
+        # create summary report
+        df_sum = pd.DataFrame()
+        df_sum['Rental'] = df_report_rental_charge.resample(report_sum).sum()['sum']
+        df_sum['SC'] = df_report_sc_charge.resample(report_sum).sum()['sum']
+        df_sum['Total'] = df_sum.sum(axis=1)
 
-    df_sum['Occ'] = df_report_occupancy.resample(report_sum).sum()['sum']
-    df_sum['OccPct'] = df_sum['Occ']/area_rentable_office
+        df_sum['Occ'] = df_report_occupancy.resample(report_sum).sum()['sum']
+        df_sum['OccPct'] = df_sum['Occ']/area_rentable_office
     return df_sum, df_report_rental_charge,df_report_sc_charge,df_report_occupancy
 
 df_data = read_worksheet_into_dataframe(sheet_data)
 df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy = calculate_revenue(date_start, date_end , df_data)
+
+# Create your views here.
+def index(request):
+    my_object = df_sum.to_html(classes='table table-striped')
+    return HttpResponse(my_object)
+
 

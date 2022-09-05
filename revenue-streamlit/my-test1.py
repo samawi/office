@@ -1,3 +1,8 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import numpy as np
+# from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
 import openpyxl
 import pandas as pd
@@ -6,7 +11,7 @@ from dateutil.relativedelta import relativedelta
 from itertools import islice
 
 # open excel file
-excel_file = "tenancy_list_30aug2022.xlsx"
+excel_file = "tenancy_list_05SEP2022.xlsx"
 wb = openpyxl.load_workbook(excel_file, data_only=True)
 
 # getting all sheets
@@ -170,10 +175,27 @@ def calculate_revenue(date_start, date_end, df_data):
     df_sum['SC'] = df_report_sc_charge.resample(report_sum).sum()['sum']
     df_sum['Total'] = df_sum.sum(axis=1)
 
-    df_sum['Occ'] = df_report_occupancy.resample(report_sum).sum()['sum']
+    df_sum['Occ'] = df_report_occupancy.resample(report_sum).mean()['sum']
     df_sum['OccPct'] = df_sum['Occ']/area_rentable_office
     return df_sum, df_report_rental_charge,df_report_sc_charge,df_report_occupancy
 
 df_data = read_worksheet_into_dataframe(sheet_data)
 df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy = calculate_revenue(date_start, date_end , df_data)
+
+# df_sum.to_excel('test1.xlsx')
+
+st.set_page_config(layout = "wide")
+
+df_sum.index = df_sum.index.strftime('%Y-%m')
+
+format_mapping = {
+    "Rental": "Rp {:,.2f}",
+    "SC": "Rp {:,.2f}",
+    "Total": "Rp {:,.2f}",
+    "Occ": "{:,.2f} m2",
+    "OccPct": "{:,.2%}",
+}
+df_sum_styled = df_sum.style.format(format_mapping)
+
+st.table(df_sum_styled)
 

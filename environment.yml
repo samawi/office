@@ -12,3 +12,6 @@ dependencies:
   - xlwings
   - openpyxl
   - django
+  - streamlit
+  - plotly
+  - watchdog
