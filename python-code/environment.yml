@@ -1,0 +1,14 @@
+name: office-revenues
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - pandas
+  - python
+  - matplotlib
+  - seaborn
+  - ipykernel
+  - xlwings
+  - openpyxl
+  - django
