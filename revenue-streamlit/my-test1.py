@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import altair as alt
 import numpy as np
-# from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
+from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode
 
 import openpyxl
 import pandas as pd
@@ -55,11 +55,13 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
     # Create report dataframe using datetime index for period
     df_report_rental_charge = pd.DataFrame(my_reporting_date_range, columns=['date'])   # Rental revenue
     df_report_sc_charge = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Service charge revenue
+    df_report_sc_charge_rate = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Service charge revenue
     df_report_occupancy = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Occupancy rate
 
     # Set 'date' as the index
     df_report_rental_charge = df_report_rental_charge.set_index('date')
     df_report_sc_charge = df_report_sc_charge.set_index('date')
+    df_report_sc_charge_rate = df_report_sc_charge_rate.set_index('date')
     df_report_occupancy = df_report_occupancy.set_index('date')
 
     # Calculate how much is SC rate based on months and years
@@ -72,8 +74,10 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
         [datetime(2020, 4, 1), 70000.00],
         [datetime(2022, 4, 1), 70000.00],
         [datetime(2024, 4, 1), 75000.00],
-        [datetime(2026, 4, 1), 80000.00],
-        [datetime(2028, 4, 1), 85000.00]
+        [datetime(2027, 4, 1), 80000.00],
+        [datetime(2030, 4, 1), 85000.00],
+        [datetime(2033, 4, 1), 90000.00],
+        [datetime(2027, 4, 1), 95000.00],
     ]
 
     # select rows according to product_type
@@ -134,23 +138,28 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
             df_report_rental_charge = df_report_rental_charge.join(df_tenant_rental_charge, how="left")
 
             # generate service charge report
-            df_sc_data = pd.DataFrame(data=sc_data, columns=['date', 'sc']).set_index('date')
-            sc_date_range = pd.date_range(start=df_sc_data.index.values.min(), end=df_sc_data.index.values.max(), freq='D')
+            # df_sc_data = pd.DataFrame(data=sc_data, columns=['date', 'sc']).set_index('date')
+            df_sc_data = pd.DataFrame(data=sc_data, columns=['date', 'sc'])
+            df_sc_data.reset_index(inplace=True)
+            sc_date_range = pd.date_range(start=df_sc_data.date.values.min(), end=df_sc_data.date.values.max(), freq='D')
             df_sc = pd.DataFrame(sc_date_range, columns=['date'])
             df_sc = df_sc.set_index('date')
 
-            for mydate in df_sc_data.index:
-                date1 = mydate
-                date2 = mydate+relativedelta(years=2)-relativedelta(days=1)
-            #print('{0} - {1}'.format(date1.strftime('%Y-%m-%d'), date2.strftime('%Y-%m-%d')))
-                if data_sc_rate == 0:
-                    df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 0
-                elif data_sc_rate == 84100:
-                    df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 84100
-                else:
-                    df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = df_sc_data.loc[mydate, 'sc']
+            length = len(df_sc_data.index)
+            for i in range(length):
+                if i < length-1:
+                    date1 = df_sc_data.iloc[i,1]
+                    date2 = df_sc_data.iloc[i+1,1]
+                    sc_rate = df_sc_data.iloc[i,2]
+                    # print(f"{date1} to {date2} is {sc_rate}" )
+                    if data_sc_rate == 0:
+                        df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 0
+                    elif data_sc_rate == 84100:
+                        df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 84100
+                    else:
+                        df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = df_sc_data.loc[i, 'sc']
 
-
+            df_sc_rate_temp = df_sc
             df_sc = df_sc * data_area
             tenant_date_range = pd.date_range(start=start, end=end, freq='MS')
 
@@ -158,6 +167,11 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
             df_tenant_service_charge = df_tenant_service_charge.set_index('date')
             df_tenant_service_charge = df_tenant_service_charge.join(df_sc, how='left')
             df_report_sc_charge = df_report_sc_charge.join(df_tenant_service_charge, how="left")
+
+            df_tenant_service_charge_rate = pd.DataFrame(tenant_date_range, columns=['date'])
+            df_tenant_service_charge_rate = df_tenant_service_charge_rate.set_index('date')
+            df_tenant_service_charge_rate = df_tenant_service_charge_rate.join(df_sc_rate_temp, how='left')
+            df_report_sc_charge_rate = df_report_sc_charge_rate.join(df_tenant_service_charge_rate, how="left")
 
             # generate occupancy report
             df_tenant_occupancy = pd.DataFrame(tenant_date_range, columns=['date'])
@@ -183,25 +197,34 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
 
     df_sum['Occ'] = df_report_occupancy.resample(report_sum).mean()['sum']
     df_sum['OccPct'] = df_sum['Occ']/area_rentable_office
-    df_sum.reset_index()
-    return df_sum, df_report_rental_charge,df_report_sc_charge,df_report_occupancy
+    df_sum.reset_index(inplace=True)
+    return df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy, df_report_sc_charge_rate
 
 df_data = read_worksheet_into_dataframe(sheet_data)
-df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy = calculate_revenue(date_start, date_end , df_data, 'Office', '3M')
+df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy, df_report_sc_charge_rate = calculate_revenue(date_start, date_end , df_data, 'Office', 'Y')
 
 # df_sum.to_excel('test1.xlsx')
 
 st.set_page_config(layout = "wide")
 
-df_sum.index = df_sum.index.strftime('%Y-%m')
+fig = px.bar(
+    df_sum,
+    x = 'date',
+    y = 'OccPct',
+    title = "Occupancy Rates",
+)
+fig.update_layout(xaxis_tickangle = -45)
+st.plotly_chart(fig, use_container_width = True)
 
 fig = px.bar(
     df_sum,
-    y = "OccPct",
-    title = "Occupancy Rate"
+    x = 'date',
+    y = ["Rental", "SC"],
+    title = "Revenue",
+    labels = {'Rental':'Rp'},
 )
-st.plotly_chart(fig)
-
+fig.update_layout(xaxis_tickangle = -45)
+st.plotly_chart(fig, use_container_width = True)
 
 format_mapping = {
     "Rental": "Rp {:,.2f}",
@@ -210,15 +233,18 @@ format_mapping = {
     "Occ": "{:,.2f} m2",
     "OccPct": "{:,.2%}",
 }
+
+# print dataframe
+"The Energy | Office Rental"
 df_sum_styled = df_sum.style.format(format_mapping)
-
-st.bar_chart(data=df_sum['OccPct'])
-
-# fig = alt.Chart(df_sum).mark_bar().encode(
-#     x='date',
-#     y='OccPct',
-# )
-# st.altair_chart(fig)
-
 st.table(df_sum_styled)
 
+# Heatmap chart
+df = df_report_rental_charge.loc['2030']
+df = df.drop(['sum'], axis = 1)
+df = df.T
+fig2 = px.density_heatmap(df)
+st.plotly_chart(fig2, use_container_width = True)
+
+fig3 = px.colors.qualitative.swatches()
+st.plotly_chart(fig3)
