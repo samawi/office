@@ -239,6 +239,14 @@ format_mapping = {
 df_sum_styled = df_sum.style.format(format_mapping)
 st.table(df_sum_styled)
 
+# B/W Heatmap of occupancy
+df = df_report_occupancy.drop(['sum'], axis = 1)
+df.mask(df > 0, 1, inplace =True)
+
+fig4 = px.imshow(df.loc['2023'].iloc[:,:], color_continuous_scale="gray")
+fig4.update_traces(xgap = 1, ygap = 1)
+st.plotly_chart(fig4, use_container_width = True)
+
 # Heatmap chart
 df = df_report_rental_charge.loc['2030']
 df = df.drop(['sum'], axis = 1)
