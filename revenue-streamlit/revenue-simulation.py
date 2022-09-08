@@ -224,7 +224,9 @@ fig = px.bar(
     title = "Occupancy Rates",
     height=500,
     text_auto=True,
+    
 )
+fig.update_traces(marker=dict(line=dict(width=5)))
 fig.update_layout(xaxis_tickangle = -45)
 st.plotly_chart(fig, use_container_width = True)
 
@@ -235,6 +237,7 @@ fig = px.bar(
     title = "Revenue",
     labels = {'Rental':'Rp'},
     height=500,
+    text_auto=True,
 )
 fig.update_layout(xaxis_tickangle = -45)
 st.plotly_chart(fig, use_container_width = True)
