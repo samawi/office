@@ -55,15 +55,15 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
     # Create report dataframe using datetime index for period
     df_report_rental_charge = pd.DataFrame(my_reporting_date_range, columns=['date'])   # Rental revenue
     df_report_sc_charge = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Service charge revenue
-    df_report_sc_charge_rate = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Service charge revenue
+    df_report_sc_charge_rate = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Service charge rate
     df_report_occupancy = pd.DataFrame(my_reporting_date_range, columns=['date'])       # Occupancy rate
-    df_pid_tenant_name_mapping = pd.DataFrame()
 
     # Set 'date' as the index
     df_report_rental_charge = df_report_rental_charge.set_index('date')
     df_report_sc_charge = df_report_sc_charge.set_index('date')
-    df_report_sc_charge_rate = df_report_sc_charge_rate.set_index('date')
     df_report_occupancy = df_report_occupancy.set_index('date')
+    df_pid_tenant_name_mapping = pd.DataFrame()
+
 
     # Calculate how much is SC rate based on months and years
     # April 2022: 75000
@@ -78,7 +78,6 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
         [datetime(2027, 4, 1), 80000.00],
         [datetime(2030, 4, 1), 85000.00],
         [datetime(2033, 4, 1), 90000.00],
-        [datetime(2027, 4, 1), 95000.00],
     ]
 
     # select rows according to product_type
@@ -103,7 +102,7 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
         if (data_sc_rate == None) or (substring in str(data_sc_rate)):
             data_sc_rate = 0.0
 
-    # calculate monthly rental and service charge
+        # calculate monthly rental and service charge
         calc_rental_charge = data_area * data_rental_rate
         calc_service_charge = data_area * data_sc_rate
 
@@ -114,25 +113,26 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
             vacant = True
             end = date_end
 
+        # generate name for the column
+        str_level = str(row['Floor']).split('.')[0]
+        str_zone = str(row['Zone'])
+        if (str_level == 'None'):
+            str_level = 'NA'
+        if (str_zone == 'None'):
+            str_zone = 'NA'
+        str_sep = '-'
+        str_temps = [str(str_level), str(str_zone), str(index)]
+        str_column_name = str_sep.join(str_temps)
+        dict01 = {'pid':[str_column_name], 'cust_name':[str_level + '-' + str_zone + '   ' + data_tenant_name]}
+        df_temp = pd.DataFrame(dict01)
+        df_pid_tenant_name_mapping = pd.concat([df_pid_tenant_name_mapping, df_temp], ignore_index=True)
+
+        if (pd.isna(start)) or (start == '-'):
+            start = date_start
+            
+        tenant_date_range = pd.date_range(start=start, end=end, freq='MS')
+
         if not vacant:
-            if (pd.isna(start)) or (start == '-'):
-                start = date_start
-
-            str_level = str(row['Floor']).split('.')[0]
-            str_zone = str(row['Zone'])
-    
-            if (str_level == 'None'):
-                str_level = 'NA'
-            if (str_zone == 'None'):
-                str_zone = 'NA'
-
-            # join them
-            str_sep = '-'
-            str_temps = [str(str_level), str(str_zone), str(index)]
-            str_column_name = str_sep.join(str_temps)
-            dict01 = {'pid':[str_column_name], 'cust_name':[str_column_name + '   ' + data_tenant_name]}
-            df_temp = pd.DataFrame(dict01)
-            df_pid_tenant_name_mapping = pd.concat([df_pid_tenant_name_mapping, df_temp], ignore_index=True)
 
             tenant_date_range = pd.date_range(start=start, end=end, freq='MS')
 
@@ -143,30 +143,24 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
             df_report_rental_charge = df_report_rental_charge.join(df_tenant_rental_charge, how="left")
 
             # generate service charge report
-            # df_sc_data = pd.DataFrame(data=sc_data, columns=['date', 'sc']).set_index('date')
-            df_sc_data = pd.DataFrame(data=sc_data, columns=['date', 'sc'])
-            df_sc_data.reset_index(inplace=True)
-            sc_date_range = pd.date_range(start=df_sc_data.date.values.min(), end=df_sc_data.date.values.max(), freq='D')
+            df_sc_data = pd.DataFrame(data=sc_data, columns=['date', 'sc']).set_index('date')
+            sc_date_range = pd.date_range(start=df_sc_data.index.values.min(), end=df_sc_data.index.values.max(), freq='D')
             df_sc = pd.DataFrame(sc_date_range, columns=['date'])
             df_sc = df_sc.set_index('date')
 
-            length = len(df_sc_data.index)
-            for i in range(length):
-                if i < length-1:
-                    date1 = df_sc_data.iloc[i,1]
-                    date2 = df_sc_data.iloc[i+1,1]
-                    sc_rate = df_sc_data.iloc[i,2]
-                    # print(f"{date1} to {date2} is {sc_rate}" )
-                    if data_sc_rate == 0:
-                        df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 0
-                    elif data_sc_rate == 84100:
-                        df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 84100
-                    else:
-                        df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = df_sc_data.loc[i, 'sc']
+            for mydate in df_sc_data.index:
+                date1 = mydate
+                date2 = mydate+relativedelta(years=2)-relativedelta(days=1)
+            #print('{0} - {1}'.format(date1.strftime('%Y-%m-%d'), date2.strftime('%Y-%m-%d')))
+                if data_sc_rate == 0:
+                    df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 0
+                elif data_sc_rate == 84100:
+                    df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = 84100
+                else:
+                    df_sc.loc[date1.strftime('%Y-%m-%d'):date2.strftime('%Y-%m-%d'), str_column_name] = df_sc_data.loc[mydate, 'sc']
 
             df_sc_rate_temp = df_sc
             df_sc = df_sc * data_area
-            tenant_date_range = pd.date_range(start=start, end=end, freq='MS')
 
             df_tenant_service_charge = pd.DataFrame(tenant_date_range, columns=['date'])
             df_tenant_service_charge = df_tenant_service_charge.set_index('date')
@@ -177,12 +171,20 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
             df_tenant_service_charge_rate = df_tenant_service_charge_rate.set_index('date')
             df_tenant_service_charge_rate = df_tenant_service_charge_rate.join(df_sc_rate_temp, how='left')
             df_report_sc_charge_rate = df_report_sc_charge_rate.join(df_tenant_service_charge_rate, how="left")
-
             # generate occupancy report
             df_tenant_occupancy = pd.DataFrame(tenant_date_range, columns=['date'])
             df_tenant_occupancy = df_tenant_occupancy.set_index('date')
             df_tenant_occupancy[str_column_name] = data_area
             df_report_occupancy = df_report_occupancy.join(df_tenant_occupancy, how="left")
+
+        
+        else: # if vacant
+            # generate occupancy report
+            df_tenant_occupancy = pd.DataFrame(tenant_date_range, columns=['date'])
+            df_tenant_occupancy = df_tenant_occupancy.set_index('date')
+            df_tenant_occupancy[str_column_name] = -1.0
+            df_report_occupancy = df_report_occupancy.join(df_tenant_occupancy, how="left")
+
 
     # Clean dataframes
     df_report_rental_charge.fillna(0, inplace=True)
@@ -208,15 +210,41 @@ def calculate_revenue(date_start, date_end, df_data, product_type, report_sum):
 df_data = read_worksheet_into_dataframe(sheet_data)
 df_sum, df_report_rental_charge, df_report_sc_charge, df_report_occupancy, df_report_sc_charge_rate, df_pid_tenant_name_mapping = calculate_revenue(date_start, date_end , df_data, 'Office', 'Y')
 
+# Clean NaT
+df_data.head(5).replace({np.nan: None},)
+
+
+
 # df_sum.to_excel('test1.xlsx')
 
-st.set_page_config(layout = "wide")
 
 # STREAMLIT OUTPUT
 ##################
+st.set_page_config(layout = "wide")
 st.header("The Energy")
 st.code(f"Excel file: {excel_file}")
 
+# Heatmap
+# B/W Heatmap of occupancy
+df_occ_stat = df_report_occupancy.drop(['sum'], axis = 1)
+new_col_names = df_pid_tenant_name_mapping['cust_name'].tolist()
+# new_col_names = ['date'] + new_col_names
+df_occ_stat.columns = new_col_names
+df_occ_stat.mask(df_occ_stat > 1, 1, inplace =True) # change to 0 and 1 (1 is for values greater than 0)
+df_occupied = df_occ_stat.filter(regex="[a-zA-Z0-9]$", axis=1)
+
+fig4 = px.imshow(df_occupied[df_occupied.columns[::-1]].loc['2022':'2032'], color_continuous_scale="gray", height=1000)
+fig4.update_traces(xgap = 1, ygap = 1)
+st.plotly_chart(fig4, use_container_width = True)
+
+# Heatmap 2 (vacant spaces remaining)
+df_vacant = df_occ_stat.filter(regex="\{Vacant\}$", axis=1)
+fig4 = px.imshow(df_vacant[df_vacant.columns[::-1]].loc['2022':'2032'], color_continuous_scale="gray", height=1000)
+fig4.update_traces(xgap = 1, ygap = 1)
+st.plotly_chart(fig4, use_container_width = True)
+
+# Barchart 1
+# Occupancy rate
 fig = px.bar(
     df_sum,
     x = 'date',
@@ -230,6 +258,8 @@ fig.update_traces(marker=dict(line=dict(width=5)))
 fig.update_layout(xaxis_tickangle = -45)
 st.plotly_chart(fig, use_container_width = True)
 
+# Barchart 2
+# Revenue
 fig = px.bar(
     df_sum,
     x = 'date',
@@ -242,6 +272,7 @@ fig = px.bar(
 fig.update_layout(xaxis_tickangle = -45)
 st.plotly_chart(fig, use_container_width = True)
 
+# Table 1
 format_mapping = {
     "Rental": "Rp {:,.2f}",
     "SC": "Rp {:,.2f}",
@@ -249,7 +280,6 @@ format_mapping = {
     "Occ": "{:,.2f} m2",
     "OccPct": "{:,.2%}",
 }
-
 # print dataframe
 "The Energy | Office Rental"
 df_sum_styled = df_sum.style.format(format_mapping)
@@ -257,22 +287,22 @@ st.table(df_sum_styled)
 
 # st.table(df_pid_tenant_name_mapping)
 
-# B/W Heatmap of occupancy
-df = df_report_occupancy.drop(['sum'], axis = 1)
-new_col_names = df_pid_tenant_name_mapping['cust_name'].tolist()
-# new_col_names = ['date'] + new_col_names
-df.columns = new_col_names
-df.mask(df > 0, 1, inplace =True)
-fig4 = px.imshow(df.loc[:].iloc[:,:], color_continuous_scale="gray", height=2000)
-fig4.update_traces(xgap = 1, ygap = 1)
-st.plotly_chart(fig4, use_container_width = True)
+# # B/W Heatmap of occupancy
+# df = df_report_occupancy.drop(['sum'], axis = 1)
+# new_col_names = df_pid_tenant_name_mapping['cust_name'].tolist()
+# # new_col_names = ['date'] + new_col_names
+# df.columns = new_col_names
+# df.mask(df > 0, 1, inplace =True)
+# fig4 = px.imshow(df.loc[:].iloc[:,:], color_continuous_scale="gray", height=2000)
+# fig4.update_traces(xgap = 1, ygap = 1)
+# st.plotly_chart(fig4, use_container_width = True)
 
-# Heatmap chart
-df = df_report_rental_charge.loc[:]
-df = df.drop(['sum'], axis = 1)
-df = df.T
-fig2 = px.density_heatmap(df)
-# st.plotly_chart(fig2, use_container_width = True)
+# # Heatmap chart
+# df = df_report_rental_charge.loc[:]
+# df = df.drop(['sum'], axis = 1)
+# df = df.T
+# fig2 = px.density_heatmap(df)
+# # st.plotly_chart(fig2, use_container_width = True)
 
-fig3 = px.colors.qualitative.swatches()
-# st.plotly_chart(fig3)
+# fig3 = px.colors.qualitative.swatches()
+# # st.plotly_chart(fig3)
