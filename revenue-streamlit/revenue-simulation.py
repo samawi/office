@@ -274,6 +274,7 @@ st.plotly_chart(fig, use_container_width = True)
 
 # Table 1
 format_mapping = {
+    "date": "{:%Y}",
     "Rental": "Rp {:,.2f}",
     "SC": "Rp {:,.2f}",
     "Total": "Rp {:,.2f}",
