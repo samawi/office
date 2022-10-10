@@ -15,5 +15,3 @@ dependencies:
   - streamlit
   - plotly
   - watchdog
-  - mitoinstaller
-  - mitosheet
